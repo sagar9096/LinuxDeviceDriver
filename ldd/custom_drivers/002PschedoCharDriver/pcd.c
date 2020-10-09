@@ -68,7 +68,7 @@ loff_t pcd_lseek(struct file *pfile, loff_t offset, int whence)
 /* read function */
 ssize_t pcd_read(struct file *pfile, char __user *buffer, size_t count, loff_t *f_pos)
 {
-	pr_info("Requested read %zu bytes:\n",count);
+	pr_info("Requested read %zu bytes\n",count);
 	pr_info("f_pos:%lld\n",*f_pos);
 	
 	// Adjust the count	
@@ -111,6 +111,10 @@ ssize_t pcd_write(struct file *pfile, const char __user *buffer, size_t count, l
 		return -EFAULT;
 	}
 
+	pr_info("User Data:%s\n", device_buffer);	
+	/* update the f_pos */
+	*f_pos += count;
+
 	pr_info("Successfully written bytes:%zu\n",count);
 	pr_info("updated f_pos:%lld\n",*f_pos);
 	
@@ -144,29 +148,59 @@ static struct file_operations pcd_fops =
 };
 static int __init init_hello_world(void)
 {
+	int ret;
 
 	pr_info("Ini module:%s\n",__func__);
 
 	/* 1. Allocate the device number Dynamically */
-	alloc_chrdev_region(&devicenumber, minornumber, count, drivername);
-	
+	ret = alloc_chrdev_region(&devicenumber, minornumber, count, drivername);
+	if(ret < 0){
+		pr_err("device number registration failed\n");
+		goto out;
+		}
 	pr_info("major:minor = %d:%d\n",MAJOR(devicenumber),MINOR(devicenumber));
 
 	/* 2. Initialize the cdev variable with file operations and module owner */
 	cdev_init(&pcd_cdev, &pcd_fops);
-	
+
 	/* 3. Register char driver with the VFS */
 	pcd_cdev.owner = THIS_MODULE;
-	cdev_add(&pcd_cdev,devicenumber,count);
-	
+	ret = cdev_add(&pcd_cdev,devicenumber,count);
+	if(ret < 0){
+		pr_err("cdev add failed\n");
+		goto destroy_devicenumber;
+		}
+
 	/* 4. Create the /sys/class entry */
 	pcd_class = class_create(THIS_MODULE,"pcd_class");
+	if(IS_ERR(pcd_class)){
+		pr_err("class create is failed\n");
+		ret = PTR_ERR(pcd_class);
+		goto destroy_cdev;
+		}
 
 	/* 5. Create the device file */
 	pcd_device = device_create(pcd_class, NULL, devicenumber, NULL, "pcd");
-
+	if(IS_ERR(pcd_device)){
+		pr_err("Device creation is failed\n");
+		ret = PTR_ERR(pcd_device);
+		goto destroy_class;
+		}
 	pr_info("pcd module init is successful\n");
 	return 0;
+
+destroy_class:
+	class_destroy(pcd_class);
+
+destroy_cdev:
+	cdev_del(&pcd_cdev);
+
+destroy_devicenumber:
+	unregister_chrdev_region(devicenumber,count);
+
+out: 
+	pr_info("pcd module initialization is failed\n");
+	return ret;
 }
 
 static void exit_hello_world(void)
