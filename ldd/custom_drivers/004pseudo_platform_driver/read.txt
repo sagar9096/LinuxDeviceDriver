@@ -15,4 +15,6 @@
 5. How do you make when new platform device is attached and exactly the same device driver get auto loaded?
 	Platform bus(Linux platform core) manage the device list and driver list. when new device is attached matching is happened and probe function of corrosponding driver is get called. 
 	
+6. When platform_device module get loaded then "name matching" is done. If the name matched then, "probe" function of platform_driver gets called. When the platform_device is removed remove function of platform_driver gets called.
+
 

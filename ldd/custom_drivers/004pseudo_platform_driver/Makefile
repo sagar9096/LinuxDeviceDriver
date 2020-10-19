@@ -1,4 +1,4 @@
-obj-m := platform_device_setup.o
+obj-m := pcd_platform_device_setup.o pcd_platform_driver.o
 
 KERN_DIR=/lib/modules/$(shell uname -r)/build/
 
